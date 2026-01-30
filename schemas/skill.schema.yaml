@@ -1,0 +1,253 @@
+# Skill Definition Schema v1.0
+# Describes how to define skills (reusable knowledge packs)
+
+# =============================================================================
+# TAXONOMY
+# =============================================================================
+
+taxonomy:
+  skill_types:
+    atomic:
+      scope: single_operation
+      state: stateless
+      description: "Single, focused operation"
+      examples:
+        - tier-weights      # Source classification
+        - recency-weights   # Temporal scoring
+        - slop-check        # AI content detection
+
+    composite:
+      scope: multi_step_operation
+      state: stateless
+      description: "Combines multiple atomic skills"
+      examples:
+        - source-evaluation # tier-weights + slop-check
+        - synthesis         # aggregation + anti-cringe
+
+    domain:
+      scope: domain_specific
+      state: may_reference_files
+      description: "Specialized knowledge pack"
+      examples:
+        - training-science  # Evidence-based principles
+        - science-rules     # Medical constraints
+        - grounding-protocol
+
+    manager:
+      scope: multi_phase_workflow
+      state: stateless
+      execution: root_only
+      description: "Workflow instructions for ROOT orchestration"
+      examples:
+        - manager-grounding # Phase 1 workflow
+        - manager-synthesis # Phase 3-5 workflow
+
+# =============================================================================
+# FRONTMATTER SCHEMA
+# =============================================================================
+
+frontmatter:
+  required:
+    name:
+      type: string
+      pattern: "^[a-z][a-z0-9-]*$"
+      description: "Unique identifier, kebab-case"
+
+    type:
+      type: enum
+      values: [atomic, composite, domain, manager]
+      description: "Skill type from taxonomy"
+
+    version:
+      type: string
+      pattern: "^v\\d+\\.\\d+$"
+      description: "Semantic version"
+
+  optional:
+    description:
+      type: string
+      maxLength: 100
+      description: "One-line description for skill registry"
+
+    depends:
+      type: array
+      items: string
+      description: "Other skills this skill requires"
+
+    input:
+      type: object
+      description: "Expected input specification"
+      properties:
+        required:
+          type: array
+          items: string
+        optional:
+          type: array
+          items: string
+
+    output:
+      type: object
+      description: "Output specification"
+      properties:
+        type:
+          type: enum
+          values: [verdict, score, data, instructions, artifact]
+        schema:
+          type: string
+          description: "Reference to output schema"
+
+# =============================================================================
+# BODY STRUCTURE BY TYPE
+# =============================================================================
+
+body_structure:
+  atomic:
+    sections:
+      - purpose       # What this skill does
+      - input         # What it receives
+      - procedure     # Step-by-step logic
+      - output        # What it returns
+
+  composite:
+    sections:
+      - purpose
+      - components    # Which skills it combines
+      - procedure     # How components interact
+      - output
+
+  domain:
+    sections:
+      - purpose
+      - principles    # Core knowledge/rules
+      - constraints   # What's forbidden
+      - references    # External sources (optional)
+
+  manager:
+    sections:
+      - purpose
+      - phases        # Phase definitions with gates
+      - orchestration # How to spawn workers
+      - state         # State management instructions
+      - recovery      # What to do on failures
+
+# =============================================================================
+# EXAMPLES
+# =============================================================================
+
+examples:
+  atomic: |
+    ---
+    name: tier-weights
+    type: atomic
+    version: v1.0
+    description: "6-tier source classification with weights"
+    output:
+      type: score
+      schema: tier-result.yaml
+    ---
+
+    # Tier Weights
+
+    ## Purpose
+    Classify source URL into quality tier (S/A/B/C/D/X) with numeric weight.
+
+    ## Input
+    - `url`: Source URL to classify
+    - `domain`: Extracted domain (optional)
+
+    ## Procedure
+    1. Extract domain from URL if not provided
+    2. Match against tier patterns:
+
+    | Tier | Weight | Patterns |
+    |------|--------|----------|
+    | S | 1.0 | github.com, arxiv.org, official docs, RFC |
+    | A | 0.8 | Personal blogs, dev.to, HN, lobste.rs |
+    | B | 0.6 | Medium (with author), Stack Overflow |
+    | C | 0.4 | News sites, aggregators |
+    | D | 0.2 | Generic content sites |
+    | X | 0.0 | SEO farms, content mills (auto-exclude) |
+
+    3. Return tier and weight
+
+    ## Output
+    ```yaml
+    tier: A
+    weight: 0.8
+    domain: "example.com"
+    reason: "Personal technical blog"
+    ```
+
+  manager: |
+    ---
+    name: manager-research
+    type: manager
+    version: v1.0
+    description: "Research pipeline orchestration (phases 1-5)"
+    ---
+
+    # Research Pipeline Manager
+
+    ## Purpose
+    Orchestrate multi-phase research pipeline from planning to final report.
+
+    ## Phases
+
+    ### Phase 1: Planning
+    - **Gate**: None (entry point)
+    - **Action**: Decompose topic into aspects
+    - **Output**: `artifacts/{session}/plan.yaml`
+    - **Next**: Phase 2
+
+    ### Phase 2: Parallel Research
+    - **Gate**: plan.yaml exists and valid
+    - **Action**: Spawn N aspect-researcher workers in parallel
+    - **Orchestration**:
+      ```
+      For each aspect in plan.aspects:
+        Task(
+          subagent_type: "general-purpose",
+          prompt: "Load aspect-researcher agent, research {aspect}",
+          run_in_background: true
+        )
+      Wait for all tasks
+      ```
+    - **Output**: `artifacts/{session}/aspects/*.yaml`
+    - **Next**: Phase 3
+
+    ### Phase 3: Synthesis
+    - **Gate**: All aspect files exist, min 3 sources per aspect
+    - **Action**: Aggregate findings, find patterns
+    - **Output**: `artifacts/{session}/synthesis.yaml`
+    - **Next**: Phase 4
+
+    ### Phase 4: Quality Gate
+    - **Gate**: synthesis.yaml exists
+    - **Action**: Run quality-gate skill
+    - **Verdicts**:
+      - PASS → Phase 5
+      - WARN → Phase 5 with caveats
+      - FAIL → Back to Phase 2 with gaps
+
+    ### Phase 5: Report Generation
+    - **Gate**: Quality gate passed
+    - **Action**: Generate final report
+    - **Output**: `artifacts/{session}/FINAL_REPORT.md`
+
+    ## State Management
+    ```yaml
+    # artifacts/{session}/state.yaml
+    session_id: string
+    current_phase: 1|2|3|4|5
+    phase_states:
+      phase_1: pending|in_progress|completed|failed
+      phase_2: pending|in_progress|completed|failed
+      # ...
+    last_updated: timestamp
+    error: string|null
+    ```
+
+    ## Recovery
+    - On worker failure: Log error, continue with remaining workers
+    - On phase failure: Update state, halt, report to user
+    - On resume: Read state.yaml, continue from current_phase

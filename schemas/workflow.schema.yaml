@@ -1,0 +1,348 @@
+# Workflow Definition Schema v1.0
+# Describes how to define multi-phase pipelines
+
+# =============================================================================
+# CONCEPTS
+# =============================================================================
+
+concepts:
+  workflow:
+    description: "End-to-end pipeline from input to artifacts"
+    components:
+      - phases
+      - gates
+      - state
+
+  phase:
+    description: "Discrete step with entry gate, actions, outputs"
+    properties:
+      - id
+      - gate (entry condition)
+      - actions (what to do)
+      - outputs (what it produces)
+      - next (where to go)
+
+  gate:
+    description: "Condition that must pass before phase executes"
+    types:
+      - file_exists
+      - schema_valid
+      - quality_threshold
+      - custom_check
+
+  action:
+    description: "What happens during phase"
+    types:
+      - spawn_single    # One worker
+      - spawn_parallel  # Multiple workers
+      - spawn_sequential # Workers in order
+      - skill_invoke    # Run a skill
+      - file_operation  # Read/write/transform
+
+# =============================================================================
+# SCHEMA
+# =============================================================================
+
+schema:
+  required:
+    id:
+      type: string
+      pattern: "^[a-z][a-z0-9-]*$"
+
+    name:
+      type: string
+      description: "Human-readable name"
+
+    version:
+      type: string
+
+    phases:
+      type: array
+      items:
+        $ref: "#/definitions/phase"
+      minItems: 1
+
+  optional:
+    description:
+      type: string
+
+    triggers:
+      type: array
+      items: string
+      description: "Slash commands that start this workflow"
+
+    context:
+      type: object
+      description: "Required context/inputs"
+
+    artifacts_path:
+      type: string
+      default: "artifacts/{session_id}"
+      description: "Base path for outputs"
+
+    state_file:
+      type: string
+      default: "state.yaml"
+
+# =============================================================================
+# DEFINITIONS
+# =============================================================================
+
+definitions:
+  phase:
+    type: object
+    required: [id, name, actions, outputs]
+    properties:
+      id:
+        type: string
+        description: "Phase identifier (e.g., 'phase_1', 'planning')"
+
+      name:
+        type: string
+        description: "Human-readable name"
+
+      gate:
+        $ref: "#/definitions/gate"
+        description: "Entry condition (null for first phase)"
+
+      actions:
+        type: array
+        items:
+          $ref: "#/definitions/action"
+
+      outputs:
+        type: array
+        items:
+          type: string
+          description: "File paths (templates allowed)"
+
+      next:
+        oneOf:
+          - type: string
+            description: "Next phase ID"
+          - type: object
+            description: "Conditional next"
+            properties:
+              on_success: {type: string}
+              on_warn: {type: string}
+              on_fail: {type: string}
+
+      parallel:
+        type: boolean
+        default: false
+        description: "Whether actions run in parallel"
+
+  gate:
+    type: object
+    properties:
+      type:
+        type: enum
+        values: [file_exists, schema_valid, quality_threshold, custom]
+
+      condition:
+        type: string
+        description: "Condition expression"
+
+      on_fail:
+        type: enum
+        values: [halt, skip, retry]
+        default: halt
+
+  action:
+    type: object
+    required: [type]
+    properties:
+      type:
+        type: enum
+        values: [spawn, skill, file_op]
+
+      # For spawn
+      agent:
+        type: string
+        description: "Agent name to spawn"
+
+      prompt:
+        type: string
+        description: "Task prompt (template with variables)"
+
+      background:
+        type: boolean
+        default: true
+
+      # For skill
+      skill:
+        type: string
+
+      # For file_op
+      operation:
+        type: enum
+        values: [read, write, copy, merge]
+
+      source:
+        type: string
+
+      target:
+        type: string
+
+# =============================================================================
+# ORCHESTRATION PATTERNS
+# =============================================================================
+
+patterns:
+  fan_out:
+    description: "Spawn N parallel workers from list"
+    example: |
+      actions:
+        - type: spawn
+          foreach: "plan.aspects"
+          agent: aspect-researcher
+          prompt: "Research aspect: {item.name}"
+          background: true
+      wait: all
+
+  pipeline:
+    description: "Sequential phases with gates"
+    example: |
+      phases:
+        - id: phase_1
+          actions: [...]
+          next: phase_2
+        - id: phase_2
+          gate:
+            type: file_exists
+            condition: "outputs/phase_1.yaml"
+          actions: [...]
+
+  quality_loop:
+    description: "Repeat until quality threshold met"
+    example: |
+      - id: research
+        actions: [...]
+        next:
+          on_success: synthesis
+          on_fail: research  # Loop back
+
+  fork_join:
+    description: "Parallel branches that merge"
+    example: |
+      - id: fork
+        parallel: true
+        actions:
+          - type: spawn
+            agent: researcher-a
+          - type: spawn
+            agent: researcher-b
+        next: join
+      - id: join
+        gate:
+          type: file_exists
+          condition: "outputs/a.yaml AND outputs/b.yaml"
+        actions:
+          - type: skill
+            skill: synthesis
+
+# =============================================================================
+# EXAMPLE WORKFLOW
+# =============================================================================
+
+example: |
+  id: deep-research
+  name: "Deep Research Pipeline"
+  version: "1.0"
+  description: "Multi-aspect research with synthesis"
+
+  triggers:
+    - "/research {topic}"
+    - "/research deep {topic}"
+
+  context:
+    required:
+      - topic: string
+    optional:
+      - depth: enum[quick, medium, deep]
+      - focus_areas: array[string]
+
+  artifacts_path: "artifacts/{session_id}"
+  state_file: "state.yaml"
+
+  phases:
+    - id: planning
+      name: "Research Planning"
+      gate: null  # Entry point
+      actions:
+        - type: skill
+          skill: research-planning
+          input:
+            topic: "{topic}"
+            depth: "{depth}"
+      outputs:
+        - "plan.yaml"
+      next: research
+
+    - id: research
+      name: "Parallel Research"
+      gate:
+        type: schema_valid
+        condition: "plan.yaml against plan.schema.yaml"
+      parallel: true
+      actions:
+        - type: spawn
+          foreach: "plan.aspects"
+          agent: aspect-researcher
+          prompt: |
+            Research aspect: {item.name}
+            Queries: {item.queries}
+            Write to: aspects/{item.id}.yaml
+          background: true
+      outputs:
+        - "aspects/*.yaml"
+      next: synthesis
+
+    - id: synthesis
+      name: "Synthesis"
+      gate:
+        type: quality_threshold
+        condition: "count(aspects/*.yaml) >= plan.min_aspects"
+      actions:
+        - type: skill
+          skill: synthesis
+          input:
+            aspects_path: "aspects/"
+            plan: "plan.yaml"
+      outputs:
+        - "synthesis.yaml"
+      next: quality_gate
+
+    - id: quality_gate
+      name: "Quality Check"
+      gate:
+        type: file_exists
+        condition: "synthesis.yaml"
+      actions:
+        - type: skill
+          skill: quality-gate
+          input:
+            synthesis: "synthesis.yaml"
+      outputs:
+        - "quality.yaml"
+      next:
+        on_success: report
+        on_warn: report
+        on_fail: research  # Back to research with gaps
+
+    - id: report
+      name: "Report Generation"
+      gate:
+        type: file_exists
+        condition: "quality.yaml"
+      actions:
+        - type: spawn
+          agent: report-generator
+          prompt: |
+            Generate final report from:
+            - synthesis.yaml
+            - quality.yaml
+            - plan.yaml
+      outputs:
+        - "FINAL_REPORT.md"
+      next: null  # Terminal

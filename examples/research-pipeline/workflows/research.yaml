@@ -1,0 +1,243 @@
+# Research Pipeline Workflow Definition
+# This is a declarative view of the pipeline (manager skill is the executable version)
+
+id: deep-research
+name: "Deep Research Pipeline"
+version: "1.0"
+description: "Multi-aspect research with synthesis and quality gates"
+
+triggers:
+  - "/research {topic}"
+  - "/research quick {topic}"
+  - "/research deep {topic}"
+
+context:
+  required:
+    topic: string
+  optional:
+    depth:
+      type: enum
+      values: [quick, medium, deep]
+      default: medium
+    focus_areas:
+      type: array
+      items: string
+
+artifacts_path: "artifacts/{session_id}"
+state_file: "state.yaml"
+
+# =============================================================================
+# PHASES
+# =============================================================================
+
+phases:
+  # ---------------------------------------------------------------------------
+  # Phase 1: Planning
+  # ---------------------------------------------------------------------------
+  - id: planning
+    name: "Research Planning"
+
+    gate: null  # Entry point, no gate
+
+    actions:
+      - type: skill
+        skill: research-planner
+        input:
+          topic: "{topic}"
+          depth: "{depth}"
+          focus_areas: "{focus_areas}"
+
+    outputs:
+      - path: "plan.yaml"
+        schema: plan.schema.yaml
+        required: true
+
+    validation:
+      - condition: "plan.aspects.length >= 3"
+        message: "Plan must have at least 3 aspects"
+
+    next: research
+
+  # ---------------------------------------------------------------------------
+  # Phase 2: Parallel Research
+  # ---------------------------------------------------------------------------
+  - id: research
+    name: "Parallel Research"
+
+    gate:
+      type: file_exists
+      condition: "plan.yaml"
+      validation: "schema_valid(plan.yaml, plan.schema.yaml)"
+
+    parallel: true
+
+    actions:
+      - type: spawn
+        foreach: "plan.aspects"
+        as: "aspect"
+        agent: aspect-researcher
+        prompt: |
+          Research aspect:
+          - aspect_id: {aspect.id}
+          - aspect_name: {aspect.name}
+          - aspect_description: {aspect.description}
+          - queries: {aspect.queries}
+          Output: aspects/{aspect.id}.yaml
+        background: true
+
+    outputs:
+      - path: "aspects/*.yaml"
+        schema: findings.schema.yaml
+        min_count: "{plan.settings.min_aspects_for_synthesis}"
+
+    validation:
+      - condition: "count(aspects/*.yaml) >= plan.settings.min_aspects_for_synthesis"
+        message: "Not enough aspects completed"
+
+    on_partial_failure:
+      action: continue_if_minimum
+      minimum: "{plan.settings.min_aspects_for_synthesis}"
+
+    next: synthesis
+
+  # ---------------------------------------------------------------------------
+  # Phase 3: Synthesis
+  # ---------------------------------------------------------------------------
+  - id: synthesis
+    name: "Findings Synthesis"
+
+    gate:
+      type: quality_threshold
+      conditions:
+        - "count(aspects/*.yaml) >= 3"
+        - "all_valid(aspects/*.yaml, findings.schema.yaml)"
+
+    actions:
+      - type: skill
+        skill: synthesis
+        input:
+          aspects_path: "aspects/"
+          plan_path: "plan.yaml"
+
+    outputs:
+      - path: "synthesis.yaml"
+        schema: synthesis.schema.yaml
+        required: true
+
+    next: quality_gate
+
+  # ---------------------------------------------------------------------------
+  # Phase 4: Quality Gate
+  # ---------------------------------------------------------------------------
+  - id: quality_gate
+    name: "Quality Check"
+
+    gate:
+      type: file_exists
+      condition: "synthesis.yaml"
+
+    actions:
+      - type: skill
+        skill: quality-gate
+        input:
+          synthesis_path: "synthesis.yaml"
+
+    outputs:
+      - path: "quality.yaml"
+        schema: quality.schema.yaml
+        required: true
+
+    routing:
+      - condition: "quality.verdict == 'PASS'"
+        next: report
+      - condition: "quality.verdict == 'WARN'"
+        next: report
+        metadata:
+          include_caveats: true
+      - condition: "quality.verdict == 'FAIL'"
+        action: halt
+        message: "Quality gate failed: {quality.issues}"
+        recovery:
+          - "Review quality.yaml for specific issues"
+          - "Re-run research phase with expanded queries"
+          - "Consider adding more aspects to plan"
+
+  # ---------------------------------------------------------------------------
+  # Phase 5: Report Generation
+  # ---------------------------------------------------------------------------
+  - id: report
+    name: "Report Generation"
+
+    gate:
+      type: quality_verdict
+      condition: "quality.verdict in ['PASS', 'WARN']"
+
+    actions:
+      - type: spawn
+        agent: report-generator
+        prompt: |
+          Generate research report:
+          - synthesis_path: synthesis.yaml
+          - plan_path: plan.yaml
+          - quality_path: quality.yaml
+          - include_caveats: {routing.metadata.include_caveats}
+          Output: FINAL_REPORT.md
+        background: false
+
+    outputs:
+      - path: "FINAL_REPORT.md"
+        required: true
+
+    next: null  # Terminal phase
+
+# =============================================================================
+# STATE SCHEMA
+# =============================================================================
+
+state_schema:
+  session_id: string
+  topic: string
+  depth: string
+  workflow: "deep-research"
+  current_phase: string
+  phase_states:
+    planning: pending|in_progress|completed|failed
+    research: pending|in_progress|completed|failed|partial
+    synthesis: pending|in_progress|completed|failed
+    quality_gate: pending|in_progress|completed|failed
+    report: pending|in_progress|completed|failed
+  started_at: timestamp
+  last_updated: timestamp
+  error: string|null
+  metadata:
+    aspects_planned: number
+    aspects_completed: number
+    total_findings: number
+    quality_verdict: string
+
+# =============================================================================
+# RECOVERY PROCEDURES
+# =============================================================================
+
+recovery:
+  on_interrupt:
+    - "Save current state"
+    - "Log interruption point"
+    - "Can resume from last completed phase"
+
+  on_error:
+    planning:
+      - "Check topic validity"
+      - "Retry with simpler decomposition"
+    research:
+      - "Identify failed aspects"
+      - "Retry only failed aspects"
+      - "Continue if minimum met"
+    synthesis:
+      - "Check aspect file validity"
+      - "Retry synthesis"
+    report:
+      - "Check synthesis file"
+      - "Retry report generation"
+
+  resume_command: "/research resume {session_id}"

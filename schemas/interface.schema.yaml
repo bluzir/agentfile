@@ -1,0 +1,423 @@
+# Interface Definition Schema v1.0
+# Describes how to define UI over YAML data (autogen UI)
+
+# =============================================================================
+# CONCEPT
+# =============================================================================
+
+concept:
+  description: |
+    Interface schema defines HOW to render data, not the data itself.
+
+    Pipeline:
+    1. LOAD: Parse interface.yaml
+    2. RESOLVE: Expand path templates ({today}, {session_id})
+    3. HYDRATE: Load YAML sources, extract values via paths
+    4. RENDER: Apply layout + field types → output format
+
+  separation:
+    data: "YAML files (L0-L3)"
+    presentation: "Interface schema"
+    rendering: "Adapter (CLI, Chat, Web, API)"
+
+# =============================================================================
+# ROOT SCHEMA
+# =============================================================================
+
+schema:
+  required:
+    id:
+      type: string
+      pattern: "^[a-z][a-z0-9-]*$"
+
+    title:
+      type: string
+
+    sources:
+      type: object
+      description: "Named references to data files"
+      additionalProperties:
+        type: string
+        description: "Path with optional {variables}"
+
+    pages:
+      type: array
+      items:
+        $ref: "#/definitions/page"
+      minItems: 1
+
+  optional:
+    version:
+      type: string
+
+    icon:
+      type: string
+      description: "Icon identifier"
+
+    variables:
+      type: object
+      description: "Variable definitions for path resolution"
+      additionalProperties:
+        type: object
+        properties:
+          type: {type: string, enum: [date, string, env]}
+          format: {type: string}
+          default: {type: string}
+
+    commands:
+      type: array
+      items:
+        $ref: "#/definitions/command"
+
+# =============================================================================
+# DEFINITIONS
+# =============================================================================
+
+definitions:
+  page:
+    type: object
+    required: [id, title, sections]
+    properties:
+      id:
+        type: string
+      title:
+        type: string
+      icon:
+        type: string
+      condition:
+        type: string
+        description: "Show page only if condition met"
+      sections:
+        type: array
+        items:
+          $ref: "#/definitions/section"
+
+  section:
+    type: object
+    required: [id, layout]
+    properties:
+      id:
+        type: string
+      title:
+        type: string
+      description:
+        type: string
+      collapsed:
+        type: boolean
+        default: false
+      condition:
+        type: string
+        description: "Show section only if condition met"
+      layout:
+        type: string
+        enum:
+          - row       # Horizontal flex
+          - grid      # 2-4 column grid
+          - card      # Single card with labeled fields
+          - hero      # Large featured content
+          - list      # Vertical list
+          - checklist # Checkbox items
+          - table     # Data table
+          - commands  # Action buttons
+      columns:
+        type: integer
+        minimum: 1
+        maximum: 4
+        default: 2
+        description: "For grid layout"
+      fields:
+        type: array
+        items:
+          $ref: "#/definitions/field"
+      groups:
+        type: array
+        items:
+          $ref: "#/definitions/group"
+        description: "For checklist layout"
+
+  field:
+    type: object
+    required: [source, path, type]
+    properties:
+      # Data binding
+      source:
+        type: string
+        description: "Reference to sources key"
+      path:
+        type: string
+        description: "JSONPath or dot notation to value"
+
+      # Display type
+      type:
+        type: string
+        enum:
+          # Metrics
+          - progress_ring   # Circular progress (value/max)
+          - progress_bar    # Linear progress
+          - stat            # Label + value
+          - metric          # Value + threshold comparison
+          - percent         # Percentage display
+
+          # Text
+          - text            # Plain text
+          - headline        # Large text
+          - subtext         # Secondary text
+          - muted           # Tertiary/dimmed text
+          - code            # Monospace
+
+          # Status
+          - status          # Boolean → icon/text
+          - chip            # Tag/badge
+          - date            # Formatted date
+          - duration        # Time duration
+
+          # Complex
+          - list            # Array → bulleted list
+          - link            # URL with label
+
+      # Labels
+      label:
+        type: string
+      suffix:
+        type: string
+        description: "Unit suffix (g, %, etc.)"
+      prefix:
+        type: string
+
+      # Thresholds (for progress, metric)
+      max:
+        type: number
+        description: "Static max value"
+      max_from:
+        type: object
+        properties:
+          source: {type: string}
+          path: {type: string}
+        description: "Dynamic max from another source"
+      threshold:
+        type: number
+      threshold_from:
+        type: object
+        properties:
+          source: {type: string}
+          path: {type: string}
+      compare:
+        type: string
+        enum: [lt, lte, gt, gte, eq]
+        default: gte
+        description: "How to compare value to threshold"
+
+      # Visual
+      color:
+        type: string
+        enum: [primary, secondary, success, warning, error, muted]
+      invert:
+        type: boolean
+        default: false
+        description: "Invert threshold logic (lower is better)"
+      icon:
+        type: string
+      indicator:
+        type: string
+        enum: [check, dot, arrow_up, arrow_down]
+
+      # Formatting
+      format:
+        type: string
+        description: "Format string (date format, number format)"
+      transform:
+        type: string
+        enum: [uppercase, lowercase, capitalize, round, floor, ceil]
+      default:
+        type: any
+        description: "Default if value is null/missing"
+
+  group:
+    type: object
+    description: "For checklist layout"
+    required: [id, items]
+    properties:
+      id:
+        type: string
+      title:
+        type: string
+      items:
+        type: array
+        items:
+          type: object
+          properties:
+            source: {type: string}
+            path: {type: string}
+            label: {type: string}
+            checked_value:
+              type: any
+              description: "Value that means 'checked'"
+
+  command:
+    type: object
+    required: [id, label]
+    properties:
+      id:
+        type: string
+        description: "Maps to slash command"
+      label:
+        type: string
+      icon:
+        type: string
+      primary:
+        type: boolean
+      color:
+        type: string
+      confirm:
+        type: string
+        description: "Confirmation message before executing"
+
+# =============================================================================
+# RENDER ADAPTERS
+# =============================================================================
+
+adapters:
+  cli:
+    description: "ASCII terminal output"
+    mappings:
+      progress_ring: "[====    ] 40%"
+      progress_bar: "[████░░░░░░] 40%"
+      stat: "Label: Value"
+      metric: "Label: ✓ 80g (threshold met)"
+      chip: "[TAG]"
+      grid: "ASCII table"
+      checklist: "[x] Item / [ ] Item"
+      commands: "1) Command1  2) Command2"
+
+  chat:
+    description: "Markdown for chat interfaces"
+    mappings:
+      progress_ring: "**Protein**: 48g/120g (40%)"
+      stat: "**Label**: Value"
+      metric: "**Label**: 80g ✓"
+      chip: "`TAG`"
+      grid: "| Col1 | Col2 |"
+      checklist: "- [x] Item"
+      commands: "`/command1`, `/command2`"
+
+  api:
+    description: "JSON for programmatic access"
+    mappings:
+      progress_ring: "{value, max, percent}"
+      stat: "{label, value}"
+      metric: "{label, value, status, threshold}"
+      grid: "{rows: [...]}"
+
+  web:
+    description: "React/HTML components"
+    mappings:
+      progress_ring: "<ProgressRing />"
+      stat: "<Stat />"
+      metric: "<Metric />"
+      chip: "<Chip />"
+      grid: "<Grid />"
+
+# =============================================================================
+# EXAMPLE
+# =============================================================================
+
+example: |
+  id: research-dashboard
+  title: "Research Dashboard"
+  version: "1.0"
+  icon: "search"
+
+  variables:
+    session_id:
+      type: string
+      default: "current"
+    today:
+      type: date
+      format: "YYYY-MM-DD"
+
+  sources:
+    plan: "artifacts/{session_id}/plan.yaml"
+    synthesis: "artifacts/{session_id}/synthesis.yaml"
+    state: "artifacts/{session_id}/state.yaml"
+    quality: "artifacts/{session_id}/quality.yaml"
+
+  pages:
+    - id: overview
+      title: "Overview"
+      icon: "home"
+      sections:
+        - id: status
+          title: "Pipeline Status"
+          layout: grid
+          columns: 4
+          fields:
+            - source: state
+              path: current_phase
+              type: chip
+              label: "Phase"
+              color: primary
+
+            - source: plan
+              path: aspects.length
+              type: stat
+              label: "Aspects"
+
+            - source: synthesis
+              path: sources_total
+              type: stat
+              label: "Sources"
+
+            - source: quality
+              path: verdict
+              type: status
+              label: "Quality"
+
+        - id: progress
+          title: "Research Progress"
+          layout: card
+          fields:
+            - source: synthesis
+              path: saturation_score
+              type: progress_bar
+              label: "Saturation"
+              max: 100
+              suffix: "%"
+              threshold: 70
+
+            - source: synthesis
+              path: diversity_score
+              type: metric
+              label: "Source Diversity"
+              threshold: 50
+              compare: gte
+              indicator: check
+
+        - id: insights
+          title: "Key Insights"
+          layout: list
+          fields:
+            - source: synthesis
+              path: key_insights
+              type: list
+
+    - id: actions
+      title: "Actions"
+      icon: "play"
+      sections:
+        - id: commands
+          layout: commands
+          commands:
+            - id: research
+              label: "Continue Research"
+              icon: "play"
+              primary: true
+
+            - id: export
+              label: "Export Report"
+              icon: "download"
+
+            - id: reset
+              label: "Reset Session"
+              icon: "refresh"
+              color: muted
+              confirm: "This will delete all progress. Continue?"

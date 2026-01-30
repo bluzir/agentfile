@@ -1,0 +1,306 @@
+# Data Layers Schema v1.0
+# Defines L0-L3 data layer conventions
+
+# =============================================================================
+# LAYER DEFINITIONS
+# =============================================================================
+
+layers:
+  L0_config:
+    name: "Configuration"
+    description: "Static configuration, rarely changed"
+
+    characteristics:
+      mutability: user_editable
+      lifecycle: persistent
+      source: "User input, environment"
+
+    conventions:
+      location: "data/config/ or project root"
+      naming: "{domain}.yaml"
+
+    examples:
+      - user_profile.yaml      # User preferences, constraints
+      - genetics.yaml          # Immutable personal data
+      - .mcp.json              # MCP server configuration
+      - settings.yaml          # Application settings
+
+    schema_requirements:
+      - Must have JSON Schema for validation
+      - Must document all fields
+      - Sensitive fields marked with `sensitive: true`
+
+  L1_directives:
+    name: "Strategic Directives"
+    description: "High-level decisions, constraints, priorities"
+
+    characteristics:
+      mutability: agent_generated_user_approved
+      lifecycle: session_persistent
+      source: "L0 analysis + strategic reasoning"
+
+    conventions:
+      location: "data/strategic/ or artifacts/{session}/"
+      naming: "{domain}-directives.yaml or plan.yaml"
+
+    examples:
+      - directives.yaml        # Health/fitness directives
+      - plan.yaml              # Research plan
+      - strategy.yaml          # Business strategy
+      - priorities.yaml        # Ranked priorities
+
+    schema_requirements:
+      - Must reference L0 sources
+      - Must have approval_status field
+      - Must have last_reviewed timestamp
+
+    approval_states:
+      - draft                  # Agent generated, not reviewed
+      - pending_review         # Awaiting user approval
+      - approved               # User approved
+      - needs_update           # Marked for revision
+
+  L2_operational:
+    name: "Operational Data"
+    description: "Working data, intermediate results"
+
+    characteristics:
+      mutability: agent_generated_overwritable
+      lifecycle: session_scoped
+      source: "L1 + external data + agent work"
+
+    conventions:
+      location: "artifacts/{session}/ or data/operational/"
+      naming: "phase{N}-{type}[-{segment}].yaml"
+
+    examples:
+      - phase1-problems.yaml   # Research phase outputs
+      - aspects/tech.yaml      # Aspect research results
+      - logs/2026-01-30.yaml   # Daily operational logs
+      - cache/sources.yaml     # Cached external data
+
+    schema_requirements:
+      - Must have created_at timestamp
+      - Must reference parent L1 directive
+      - Should have source attribution
+
+    lifecycle_rules:
+      - Can be regenerated from L1 + external sources
+      - Old sessions can be archived/deleted
+      - No manual editing (regenerate instead)
+
+  L3_artifacts:
+    name: "Final Artifacts"
+    description: "Deliverables, reports, exports"
+
+    characteristics:
+      mutability: append_only_versioned
+      lifecycle: permanent
+      source: "L2 synthesis"
+
+    conventions:
+      location: "artifacts/{session}/ or outputs/"
+      naming: "FINAL_{type}.{ext} or {type}_v{N}.{ext}"
+
+    examples:
+      - FINAL_REPORT.md        # Research report
+      - job-graph-v1.yaml      # JTBD job graph
+      - content-matrix.csv     # Content calendar
+      - export_2026-01-30.pdf  # Date-stamped export
+
+    schema_requirements:
+      - Must pass quality gate before creation
+      - Must have version number
+      - Must reference L2 sources used
+      - Should have generation metadata
+
+# =============================================================================
+# LAYER CONTRACTS
+# =============================================================================
+
+contracts:
+  L0_to_L1:
+    direction: bottom_up
+    description: "L0 informs L1 strategy"
+
+    trigger: "Strategic review command or schedule"
+
+    process:
+      1: "Read all L0 config files"
+      2: "Analyze against goals/constraints"
+      3: "Generate L1 directives (draft)"
+      4: "Present to user for approval"
+      5: "Update approval_status"
+
+    validation:
+      - L1 must not contradict L0 constraints
+      - L1 must reference specific L0 sources
+
+  L1_to_L2:
+    direction: top_down
+    description: "L1 constrains L2 operations"
+
+    trigger: "Operational command"
+
+    process:
+      1: "Load relevant L1 directives"
+      2: "Execute operation within L1 constraints"
+      3: "Write L2 output with L1 reference"
+
+    validation:
+      - L2 decisions must comply with L1 directives
+      - L1 constraints ALWAYS override L2 preferences
+      - Conflicts must be escalated, not resolved by L2
+
+  L2_to_L3:
+    direction: synthesis
+    description: "L2 data synthesized into L3 artifacts"
+
+    trigger: "Quality gate pass + generation command"
+
+    process:
+      1: "Collect all relevant L2 files"
+      2: "Run quality gate skill"
+      3: "If PASS/WARN: generate artifact"
+      4: "If FAIL: return to L2 with gaps"
+      5: "Version and store L3 artifact"
+
+    validation:
+      - Must pass quality gate
+      - Must have source traceability
+      - Must be versioned
+
+# =============================================================================
+# FILE NAMING CONVENTIONS
+# =============================================================================
+
+naming:
+  patterns:
+    config: "{domain}.yaml"
+    directive: "{domain}-directives.yaml"
+    plan: "plan.yaml"
+    phase_output: "phase{N}-{type}.yaml"
+    phase_segment: "phase{N}-{type}-{segment_id}.yaml"
+    aspect: "aspects/{aspect_id}.yaml"
+    log: "logs/{YYYY-MM-DD}.yaml"
+    final: "FINAL_{TYPE}.{ext}"
+    versioned: "{type}_v{N}.{ext}"
+
+  variables:
+    "{N}": "Phase number (1, 2, 3...)"
+    "{type}": "Content type (problems, synthesis, report)"
+    "{segment_id}": "Segment identifier"
+    "{aspect_id}": "Aspect identifier"
+    "{YYYY-MM-DD}": "ISO date"
+    "{domain}": "Domain name (health, research)"
+    "{TYPE}": "Uppercase type for finals"
+
+# =============================================================================
+# STATE MANAGEMENT
+# =============================================================================
+
+state:
+  file: "state.yaml"
+  location: "artifacts/{session}/"
+
+  schema:
+    session_id:
+      type: string
+      description: "Unique session identifier"
+
+    workflow_id:
+      type: string
+      description: "Which workflow is running"
+
+    current_phase:
+      type: string
+      description: "Current phase ID"
+
+    phase_states:
+      type: object
+      description: "State of each phase"
+      additionalProperties:
+        type: string
+        enum: [pending, in_progress, completed, failed, skipped]
+
+    created_at:
+      type: string
+      format: datetime
+
+    last_updated:
+      type: string
+      format: datetime
+
+    error:
+      type: string
+      nullable: true
+      description: "Last error message if failed"
+
+    metadata:
+      type: object
+      description: "Workflow-specific metadata"
+
+  example: |
+    session_id: "research_20260130_abc123"
+    workflow_id: "deep-research"
+    current_phase: "synthesis"
+    phase_states:
+      planning: completed
+      research: completed
+      synthesis: in_progress
+      quality_gate: pending
+      report: pending
+    created_at: "2026-01-30T10:00:00Z"
+    last_updated: "2026-01-30T10:45:00Z"
+    error: null
+    metadata:
+      topic: "AI agents orchestration"
+      depth: "deep"
+      aspects_count: 5
+
+# =============================================================================
+# DIRECTORY STRUCTURE
+# =============================================================================
+
+structure:
+  project_root:
+    data:
+      config:
+        - user_profile.yaml
+        - settings.yaml
+      strategic:
+        - directives.yaml
+      operational:
+        logs:
+          - "{date}.yaml"
+    artifacts:
+      "{session_id}":
+        - state.yaml
+        - plan.yaml
+        - synthesis.yaml
+        - quality.yaml
+        - FINAL_REPORT.md
+        aspects:
+          - "{aspect_id}.yaml"
+
+  example: |
+    project/
+    ├── data/
+    │   ├── config/
+    │   │   ├── user_profile.yaml      # L0
+    │   │   └── settings.yaml          # L0
+    │   ├── strategic/
+    │   │   └── directives.yaml        # L1
+    │   └── operational/
+    │       └── logs/
+    │           └── 2026-01-30.yaml    # L2
+    └── artifacts/
+        └── research_20260130_abc/
+            ├── state.yaml             # State
+            ├── plan.yaml              # L1
+            ├── synthesis.yaml         # L2
+            ├── quality.yaml           # L2
+            ├── FINAL_REPORT.md        # L3
+            └── aspects/
+                ├── tech.yaml          # L2
+                └── market.yaml        # L2

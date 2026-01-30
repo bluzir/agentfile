@@ -1,0 +1,238 @@
+# Agent Definition Schema v1.0
+# Describes how to define agents in the framework
+
+# =============================================================================
+# TAXONOMY
+# =============================================================================
+
+taxonomy:
+  # Architectural roles (execution context)
+  architectural_roles:
+    commander:
+      execution_context: root
+      can_spawn: true
+      description: "Entry point, orchestrates via Task tool"
+      trigger: "slash command"
+
+    manager:
+      execution_context: root_skill
+      can_spawn: false  # ROOT spawns after reading manager instructions
+      description: "Workflow controller loaded as Skill into ROOT"
+      trigger: "loaded by commander"
+
+    worker:
+      execution_context: subagent
+      can_spawn: false
+      description: "Isolated executor, single task focus"
+      trigger: "Task tool spawn"
+
+    utility:
+      execution_context: inline
+      can_spawn: false
+      description: "Stateless procedure injected into context"
+      trigger: "Skill tool invocation"
+
+  # Functional roles (what agent does)
+  functional_roles:
+    # Discovery
+    explorer:
+      pattern: "Wide search → Structured output"
+      input: [topic]
+      output: [trends, context, initial_data]
+
+    researcher:
+      pattern: "Queries → Source evaluation → Extraction"
+      input: [aspect_definition, queries]
+      output: [findings, sources]
+
+    # Analysis
+    scorer:
+      pattern: "Input → Criteria → Scores"
+      input: [entities]
+      output: [scored_entities, rankings]
+
+    aggregator:
+      pattern: "N inputs → Synthesis → 1 output"
+      input: [findings]
+      output: [aggregated_insights]
+
+    validator:
+      pattern: "Input → Rules → Pass/Warn/Fail"
+      input: [data]
+      output: [verdict, issues]
+
+    # Generation
+    generator:
+      pattern: "Context → Template → Artifact"
+      input: [data, template]
+      output: [artifact]
+
+    transformer:
+      pattern: "Format A → Logic → Format B"
+      input: [source_format]
+      output: [target_format]
+
+    # Operations
+    operator:
+      pattern: "Command → Validation → Storage"
+      input: [operation, data]
+      output: [state_change]
+
+# =============================================================================
+# FRONTMATTER SCHEMA
+# =============================================================================
+
+frontmatter:
+  required:
+    name:
+      type: string
+      pattern: "^[a-z][a-z0-9-]*$"
+      description: "Unique identifier, kebab-case"
+
+    type:
+      type: enum
+      values: [commander, manager, worker, utility]
+      description: "Architectural role"
+
+    model:
+      type: enum
+      values: [sonnet, opus, haiku]
+      default: sonnet
+      description: "LLM model to use"
+
+  optional:
+    functional_role:
+      type: enum
+      values: [explorer, researcher, scorer, aggregator, validator, generator, transformer, operator]
+      description: "What this agent does"
+
+    tools:
+      type: array
+      items: string
+      description: "MCP tools and Claude Code tools"
+      examples:
+        - mcp__exa__web_search_exa
+        - mcp__exa__crawling_exa
+        - Read
+        - Write
+        - Glob
+        - Grep
+
+    skills:
+      type: object
+      properties:
+        required:
+          type: array
+          items: string
+          description: "Always loaded skills"
+        contextual:
+          type: array
+          items: string
+          description: "Loaded based on task context"
+
+    permissions:
+      type: object
+      properties:
+        file_write:
+          type: boolean
+          default: false
+        file_read:
+          type: boolean
+          default: true
+        mcp_access:
+          type: boolean
+          default: false
+        web_search:
+          type: boolean
+          default: false
+
+    output:
+      type: object
+      description: "Expected output specification"
+      properties:
+        format:
+          type: enum
+          values: [yaml, markdown, json, text]
+        schema:
+          type: string
+          description: "Reference to output schema"
+        path:
+          type: string
+          description: "Where to write output (template with variables)"
+
+# =============================================================================
+# BODY STRUCTURE
+# =============================================================================
+
+body_sections:
+  required:
+    - purpose      # One sentence: what this agent does
+    - context      # What data/files agent receives
+    - instructions # Step-by-step execution guide
+
+  optional:
+    - constraints  # Limitations, forbidden actions
+    - examples     # Input/output examples
+    - quality      # Quality criteria for output
+
+# =============================================================================
+# EXAMPLE
+# =============================================================================
+
+example: |
+  ---
+  name: aspect-researcher
+  type: worker
+  functional_role: researcher
+  model: sonnet
+  tools:
+    - mcp__exa__web_search_exa
+    - mcp__exa__crawling_exa
+    - Read
+    - Write
+  skills:
+    required:
+      - search-safeguard
+      - silence-protocol
+    contextual:
+      - tier-weights
+      - slop-check
+  permissions:
+    file_write: true
+    mcp_access: true
+    web_search: true
+  output:
+    format: yaml
+    schema: findings.schema.yaml
+    path: "artifacts/{session_id}/aspects/{aspect_id}.yaml"
+  ---
+
+  # Aspect Researcher
+
+  ## Purpose
+  Research a single aspect of the topic using web search, evaluate sources, extract findings.
+
+  ## Context
+  - `aspect_definition`: Aspect name, description, queries to run
+  - `plan`: Overall research plan with constraints
+  - `session_id`: Current session identifier
+
+  ## Instructions
+  1. Read aspect definition from provided path
+  2. Execute queries using search-safeguard skill
+  3. For each result:
+     - Classify source tier (S/A/B/C/D/X)
+     - Check for AI-generated content (slop-check)
+     - Extract relevant findings if source passes
+  4. Aggregate findings with source attribution
+  5. Write output to specified path
+
+  ## Constraints
+  - Maximum 15 sources per aspect
+  - Skip X-tier sources entirely
+  - Do not hallucinate findings - only extract from sources
+
+  ## Quality
+  - Each finding must have source URL
+  - Findings must be relevant to aspect (not tangential)
+  - Prefer S/A tier sources over lower tiers
