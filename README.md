@@ -1,11 +1,33 @@
-# Agent Orchestration Framework v1.0
+# Agentfile
+
+**File-First Agent Orchestration**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-Compatible-blue.svg)](https://claude.ai/code)
 
-Conventions and templates for organizing multi-agent systems on top of Claude Code primitives.
+> Readable agents. Inspectable state. Predictable costs.
 
-> **New to the framework?** Check out [QUICKSTART.md](QUICKSTART.md) for a 5-minute getting started guide.
+```
+LangGraph power without LangGraph complexity.
+Swarm simplicity with actual persistence.
+Markdown you can read. Files you can inspect. Agents that don't loop forever.
+```
+
+---
+
+## Why Agentfile?
+
+| Problem | LangGraph | Swarm | Agentfile |
+|---------|-----------|-------|-----------|
+| **Debugging** | LangSmith (paid, vendor lock-in) | No logs, state in memory | `cat state.yaml` |
+| **State persistence** | Redis/Postgres setup | None (in-memory only) | YAML files, git-friendly |
+| **Learning curve** | Steep, docs in flux | Minimal but no features | Markdown specs you can read |
+| **Cost control** | Manual implementation | None | Circuit breakers out of the box |
+| **Agent definitions** | Python classes + decorators | Python functions | Markdown files |
+
+**One-liner:** Agents you can `git blame`.
+
+> **New to Agentfile?** Check out [QUICKSTART.md](QUICKSTART.md) for a 5-minute getting started guide.
 
 ---
 
@@ -15,14 +37,14 @@ Conventions and templates for organizing multi-agent systems on top of Claude Co
 - [Why Claude Code](#why-claude-code)
 - [Who Is This For](#who-is-this-for)
 - [The Problem](#the-problem)
-- [Framework Architecture](#framework-architecture)
+- [Architecture](#architecture)
 - [Agent Taxonomy](#agent-taxonomy)
 - [Data Layers (L0-L3)](#data-layers-l0-l3)
 - [Orchestration (Deep Dive)](#orchestration-deep-dive)
 - [Interface Schema](#interface-schema-autogen-ui)
-- [Framework Structure](#framework-structure)
+- [Project Structure](#project-structure)
 - [Usage](#usage)
-- [When to Use This Framework](#when-to-use-this-framework)
+- [When to Use Agentfile](#when-to-use-agentfile)
 - [Adoption Path](#adoption-path)
 - [Principles (TL;DR)](#principles-tldr)
 
@@ -112,7 +134,7 @@ The system that lets you iterate fastest wins.
 
 ### Self-Improving System
 
-Claude Code isn't just a tool you use. Combined with this framework, it becomes a system that improves itself.
+Claude Code isn't just a tool you use. Combined with Agentfile, it becomes a system that improves itself.
 
 ```
 You: "This agent is hallucinating sources"
@@ -180,7 +202,7 @@ You're building agents on Claude Code and encountering:
 - Questions like "where to store state?" and "how to resume after failure?"
 - Desire for structure, but without heavy frameworks
 
-This framework is a set of **conventions**, not a library. You use it as a reference and adapt it to your needs.
+Agentfile is a set of **conventions**, not a library. You use it as a reference and adapt it to your needs.
 
 ---
 
@@ -277,7 +299,7 @@ Use a framework for everything.
 
 ---
 
-### How This Framework Solves These Problems
+### How Agentfile Solves These Problems
 
 | Problem | Solution |
 |---------|----------|
@@ -333,7 +355,7 @@ Why files > memory:
 
 ---
 
-## Framework Architecture
+## Architecture
 
 ### Mental Model (Like an OS)
 
@@ -983,10 +1005,10 @@ Render adapters transform to target:
 
 ---
 
-## Framework Structure
+## Project Structure
 
 ```
-framework/
+agentfile/
 ├── README.md                         # This file
 ├── LICENSE                           # MIT License
 ├── QUICKSTART.md                     # Getting started guide
@@ -1057,7 +1079,14 @@ pages:
 
 ---
 
-## When to Use This Framework
+## When to Use Agentfile
+
+**You need Agentfile if:**
+- Your agent burned $50 while you were at lunch
+- You can't figure out why the pipeline failed at step 4
+- "It worked yesterday" is your debugging strategy
+- Your project grew and now the LLM loses track
+- You need to hand off agent code to a client who won't learn LangGraph
 
 **Good fit:**
 - Multi-step research pipelines
