@@ -1,0 +1,6 @@
+# Sample conversation item
+id: item-031
+title: "Jest snapshot testing strategy"
+content: |
+  Snapshots getting out of control. Need guidance on when to use them.
+  Nothing seems to work. What am I missing?

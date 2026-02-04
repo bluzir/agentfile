@@ -1,0 +1,6 @@
+# Sample conversation item
+id: item-002
+title: TypeScript generics for API responses
+content: |
+  Need help typing a generic fetch wrapper that handles different
+  response types. Want to infer types from the endpoint.

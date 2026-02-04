@@ -1,0 +1,6 @@
+# Sample conversation item
+id: item-024
+title: "ESLint custom rules"
+content: |
+  Creating custom ESLint rules for our codebase. Need to enforce specific patterns.
+  This is exactly what I needed! Thank you!

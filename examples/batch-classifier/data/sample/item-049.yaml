@@ -1,0 +1,6 @@
+# Sample conversation item
+id: item-049
+title: "Feature flag implementation"
+content: |
+  Rolling out features gradually. Need targeting by user segment.
+  Looking for guidance on this approach.

@@ -1,0 +1,6 @@
+# Sample conversation item
+id: item-040
+title: "Node.js worker threads"
+content: |
+  Offloading CPU-intensive work to worker threads. Need to share data efficiently.
+  Looking for guidance on this approach.

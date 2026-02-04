@@ -1,0 +1,6 @@
+# Sample conversation item
+id: item-014
+title: "Nginx reverse proxy configuration"
+content: |
+  Load balancing between multiple backend servers. Need sticky sessions for WebSockets.
+  Need to understand how this works.

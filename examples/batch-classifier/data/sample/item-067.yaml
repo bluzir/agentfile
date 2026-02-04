@@ -1,0 +1,6 @@
+# Sample conversation item
+id: item-067
+title: "Release notes format"
+content: |
+  Making release notes readable. Current format is too technical.
+  What are the trade-offs here?

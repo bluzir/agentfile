@@ -1,0 +1,6 @@
+# Sample conversation item
+id: item-003
+title: Docker compose for local development
+content: |
+  Setting up a docker-compose file for a Node.js app with PostgreSQL
+  and Redis. Need hot reloading to work.

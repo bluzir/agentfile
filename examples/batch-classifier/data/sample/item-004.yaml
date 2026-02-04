@@ -1,0 +1,6 @@
+# Sample conversation item
+id: item-004
+title: GraphQL vs REST for mobile app
+content: |
+  Building a mobile app and trying to decide between GraphQL and REST.
+  Concerned about caching and offline support.

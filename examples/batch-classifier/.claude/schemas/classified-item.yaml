@@ -1,0 +1,115 @@
+# Classification Schema
+# Defines the structure for classified items
+
+$schema: "http://json-schema.org/draft-07/schema#"
+title: Classified Item
+description: Schema for a classified data item
+
+type: object
+required:
+  - item_id
+  - title
+  - classification
+
+properties:
+  item_id:
+    type: string
+    description: Unique identifier for the item
+    pattern: "^[a-z0-9-]+$"
+
+  title:
+    type: string
+    description: Title or summary of the item
+    minLength: 1
+    maxLength: 200
+
+  classification:
+    type: object
+    required:
+      - category
+      - sentiment
+      - tags
+    properties:
+      category:
+        type: string
+        description: Primary topic domain
+        enum:
+          - tech
+          - product
+          - content
+          - personal
+          - creative
+
+      sentiment:
+        type: string
+        description: Overall tone of the item
+        enum:
+          - positive
+          - neutral
+          - negative
+
+      tags:
+        type: array
+        description: Specific subtopics (1-3 tags)
+        items:
+          type: string
+          pattern: "^[a-z][a-z0-9-]*$"
+          minLength: 2
+          maxLength: 30
+        minItems: 1
+        maxItems: 3
+        uniqueItems: true
+
+# Category definitions for reference
+definitions:
+  categories:
+    tech:
+      description: Programming, APIs, architecture, debugging, tools
+      examples:
+        - React hooks best practices
+        - API rate limiting strategies
+        - Debugging memory leaks
+    product:
+      description: Features, UX, pricing, roadmaps, analytics
+      examples:
+        - Feature prioritization framework
+        - User onboarding optimization
+        - Pricing tier analysis
+    content:
+      description: Writing, marketing, SEO, social media
+      examples:
+        - Blog post optimization
+        - Landing page copy
+        - Social media strategy
+    personal:
+      description: Life advice, career, relationships, health
+      examples:
+        - Career transition advice
+        - Work-life balance
+        - Productivity habits
+    creative:
+      description: Art, design, storytelling, brainstorming
+      examples:
+        - Logo design feedback
+        - Story plot development
+        - Creative writing prompts
+
+  sentiments:
+    positive:
+      description: Enthusiasm, success stories, solutions found
+      indicators:
+        - Excitement about results
+        - Sharing achievements
+        - Gratitude expressions
+    neutral:
+      description: Questions, factual discussions, how-tos
+      indicators:
+        - Information seeking
+        - Technical questions
+        - Objective analysis
+    negative:
+      description: Problems, frustrations, complaints
+      indicators:
+        - Bug reports
+        - Frustration with tools
+        - Criticism or complaints

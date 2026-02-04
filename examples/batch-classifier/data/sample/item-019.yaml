@@ -1,0 +1,6 @@
+# Sample conversation item
+id: item-019
+title: "gRPC vs REST performance"
+content: |
+  Considering gRPC for internal services. Benchmarking against REST with Protocol Buffers.
+  Looking for guidance on this approach.

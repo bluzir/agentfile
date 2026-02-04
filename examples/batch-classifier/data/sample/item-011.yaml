@@ -1,0 +1,6 @@
+# Sample conversation item
+id: item-011
+title: "WebSocket implementation in Go"
+content: |
+  Building a real-time chat feature. Handling thousands of concurrent connections.
+  Been stuck on this for days. Frustrated.

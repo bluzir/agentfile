@@ -1,0 +1,6 @@
+# Sample conversation item
+id: item-039
+title: "TypeScript path aliases"
+content: |
+  Setting up @ imports in TypeScript. Working with Jest and Webpack.
+  Excited to implement this solution.

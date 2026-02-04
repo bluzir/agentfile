@@ -1,0 +1,6 @@
+# Sample conversation item
+id: item-028
+title: "Prisma migrations in production"
+content: |
+  Handling database migrations safely. Need rollback strategy.
+  Need to understand how this works.

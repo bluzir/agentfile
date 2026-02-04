@@ -1,0 +1,6 @@
+# Sample conversation item
+id: item-032
+title: "DNS configuration for multi-region"
+content: |
+  Setting up geo-DNS for global traffic routing. Using Route 53.
+  Looking for guidance on this approach.

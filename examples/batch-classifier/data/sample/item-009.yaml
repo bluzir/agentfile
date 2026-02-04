@@ -1,0 +1,6 @@
+# Sample conversation item
+id: item-009
+title: "SQL query optimization"
+content: |
+  This query is taking 30 seconds. Need help with indexing and query plan analysis.
+  Finally figured it out with your help.

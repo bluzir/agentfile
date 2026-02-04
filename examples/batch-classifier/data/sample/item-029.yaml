@@ -1,0 +1,6 @@
+# Sample conversation item
+id: item-029
+title: "WebAssembly performance tuning"
+content: |
+  Wasm module loading slowly. Optimizing bundle size and startup time.
+  Exploring options for this problem.

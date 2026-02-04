@@ -1,0 +1,6 @@
+# Sample conversation item
+id: item-005
+title: Debugging memory leak in Node.js
+content: |
+  My Node.js server memory keeps growing. Used heapdump but can't
+  figure out what's leaking. Suspect it's related to event listeners.

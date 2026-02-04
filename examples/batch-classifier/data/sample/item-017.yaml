@@ -1,0 +1,6 @@
+# Sample conversation item
+id: item-017
+title: "Vue 3 composition API migration"
+content: |
+  Migrating from Vue 2 options API. Need to understand ref vs reactive.
+  Exploring options for this problem.

@@ -1,0 +1,6 @@
+# Sample conversation item
+id: item-020
+title: "Terraform state management"
+content: |
+  Remote state in S3, handling state locks with DynamoDB. Team collaboration issues.
+  Looking for guidance on this approach.

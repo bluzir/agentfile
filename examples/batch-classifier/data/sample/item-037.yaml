@@ -1,0 +1,6 @@
+# Sample conversation item
+id: item-037
+title: "Svelte stores vs context"
+content: |
+  State management in Svelte. When to use stores vs context API.
+  What are the trade-offs here?

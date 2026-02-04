@@ -1,0 +1,6 @@
+# Sample conversation item
+id: item-018
+title: "Rate limiting implementation"
+content: |
+  Building a rate limiter for our API. Redis-based, need sliding window algorithm.
+  Excited to implement this solution.

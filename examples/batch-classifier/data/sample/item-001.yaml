@@ -1,0 +1,6 @@
+# Sample conversation item
+id: item-001
+title: React hooks best practices
+content: |
+  Discussion about useEffect dependencies and custom hooks patterns.
+  Looking for advice on when to use useMemo vs useCallback.

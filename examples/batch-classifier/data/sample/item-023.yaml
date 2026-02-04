@@ -1,0 +1,6 @@
+# Sample conversation item
+id: item-023
+title: "Microservices tracing with Jaeger"
+content: |
+  Distributed tracing across 15 services. Having trouble with context propagation.
+  Exploring options for this problem.

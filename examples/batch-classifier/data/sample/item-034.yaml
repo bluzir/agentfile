@@ -1,0 +1,6 @@
+# Sample conversation item
+id: item-034
+title: "Cypress vs Playwright for E2E"
+content: |
+  Choosing E2E testing framework. Need good CI integration and debugging.
+  Looking for guidance on this approach.

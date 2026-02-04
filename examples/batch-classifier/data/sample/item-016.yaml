@@ -1,0 +1,6 @@
+# Sample conversation item
+id: item-016
+title: "MongoDB aggregation pipeline help"
+content: |
+  Complex aggregation with multiple lookups and unwinds. Performance is terrible.
+  Nothing seems to work. What am I missing?

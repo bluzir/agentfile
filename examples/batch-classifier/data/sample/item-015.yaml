@@ -1,0 +1,6 @@
+# Sample conversation item
+id: item-015
+title: "AWS Lambda cold start optimization"
+content: |
+  Lambda functions taking 2-3 seconds to cold start. Using Python with heavy dependencies.
+  Great progress today!

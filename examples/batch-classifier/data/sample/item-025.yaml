@@ -1,0 +1,6 @@
+# Sample conversation item
+id: item-025
+title: "Next.js ISR vs SSG"
+content: |
+  Confused about when to use Incremental Static Regeneration vs full static generation.
+  Looking for guidance on this approach.

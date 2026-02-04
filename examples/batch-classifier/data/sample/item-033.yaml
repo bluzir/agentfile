@@ -1,0 +1,6 @@
+# Sample conversation item
+id: item-033
+title: "Tailwind CSS purging issues"
+content: |
+  Tailwind classes not working in production. PurgeCSS configuration problems.
+  Excited to implement this solution.

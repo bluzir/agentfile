@@ -1,0 +1,6 @@
+# Sample conversation item
+id: item-030
+title: "Kafka consumer groups"
+content: |
+  Setting up consumer groups for event processing. Need exactly-once semantics.
+  Finally figured it out with your help.

@@ -1,0 +1,6 @@
+# Sample conversation item
+id: item-035
+title: "React Server Components architecture"
+content: |
+  Understanding RSC data fetching patterns. When to use client vs server.
+  What are the trade-offs here?

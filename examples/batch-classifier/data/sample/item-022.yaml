@@ -1,0 +1,6 @@
+# Sample conversation item
+id: item-022
+title: "Redis caching strategy"
+content: |
+  Implementing cache-aside pattern. Need help with cache invalidation logic.
+  What are the trade-offs here?

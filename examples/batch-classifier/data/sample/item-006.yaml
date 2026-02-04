@@ -1,0 +1,6 @@
+# Sample conversation item
+id: item-006
+title: "React state management patterns"
+content: |
+  Comparing Redux, Zustand, and Jotai for large-scale React apps. Need something with good DevTools.
+  Nothing seems to work. What am I missing?

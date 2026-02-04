@@ -1,0 +1,6 @@
+# Sample conversation item
+id: item-038
+title: "CDN cache configuration"
+content: |
+  CloudFront cache-control headers. Need different TTLs for different content types.
+  Looking for guidance on this approach.

@@ -1,0 +1,6 @@
+# Sample conversation item
+id: item-013
+title: "Rust memory management patterns"
+content: |
+  Learning Rust, struggling with lifetimes and borrowing. Coming from JavaScript.
+  Exploring options for this problem.

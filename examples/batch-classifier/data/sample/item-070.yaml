@@ -1,0 +1,6 @@
+# Sample conversation item
+id: item-070
+title: "Technical writing style guide"
+content: |
+  Creating consistency across docs. Tone, terminology, examples.
+  What are the trade-offs here?

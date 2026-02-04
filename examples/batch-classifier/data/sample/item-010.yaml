@@ -1,0 +1,6 @@
+# Sample conversation item
+id: item-010
+title: "Git branching strategy for team"
+content: |
+  Team of 8 developers, trying to standardize on trunk-based or GitFlow. Pros and cons?
+  Need to understand how this works.

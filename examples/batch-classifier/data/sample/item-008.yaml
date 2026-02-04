@@ -1,0 +1,6 @@
+# Sample conversation item
+id: item-008
+title: "Kubernetes deployment strategies"
+content: |
+  Setting up blue-green deployments for our microservices. Need zero-downtime updates.
+  Looking for guidance on this approach.

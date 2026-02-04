@@ -1,0 +1,6 @@
+# Sample conversation item
+id: item-026
+title: "Elasticsearch mapping optimization"
+content: |
+  Full-text search performance issues. Need to tune analyzers and mappings.
+  Been stuck on this for days. Frustrated.

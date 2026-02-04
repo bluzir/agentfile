@@ -1,0 +1,6 @@
+# Sample conversation item
+id: item-012
+title: "CI/CD pipeline with GitHub Actions"
+content: |
+  Setting up automated testing and deployment. Need matrix builds for multiple Node versions.
+  Excited to implement this solution.

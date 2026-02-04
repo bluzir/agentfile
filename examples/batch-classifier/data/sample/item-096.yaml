@@ -1,0 +1,6 @@
+# Sample conversation item
+id: item-096
+title: "Animation library for React"
+content: |
+  Comparing Framer Motion, React Spring, and GSAP for complex animations.
+  Need smooth 60fps performance on mobile.

@@ -1,0 +1,6 @@
+# Sample conversation item
+id: item-036
+title: "PostgreSQL partitioning strategy"
+content: |
+  Table has 500M rows. Need to partition by date for query performance.
+  Been stuck on this for days. Frustrated.
