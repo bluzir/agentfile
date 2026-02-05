@@ -41,9 +41,9 @@ Markdown you can read. Files you can inspect. Agents that don't loop forever.
 - [Agent Taxonomy](#agent-taxonomy)
 - [Data Layers (L0-L3)](#data-layers-l0-l3)
 - [Orchestration (Deep Dive)](#orchestration-deep-dive)
-- [Interface Schema](#interface-schema-autogen-ui)
 - [Project Structure](#project-structure)
 - [Usage](#usage)
+- [Examples](#examples)
 - [When to Use Clawdfile](#when-to-use-clawdfile)
 - [Adoption Path](#adoption-path)
 - [Principles (TL;DR)](#principles-tldr)
@@ -191,6 +191,22 @@ git checkout HEAD~5 -- .claude/agents/my-agent.md
 Roll back an agent to last week's version. Branch to experiment. Merge improvements from a colleague.
 
 This is why markdown and YAML beat code and databases for agent development: they remove every obstacle between "I have an idea" and "it's running."
+
+### The Gap: Tasks vs Pipelines
+
+Claude Code excels at solving individual tasks. Give it a problem, it figures it out.
+
+But operational pipelines are different:
+- Multiple steps that must run in sequence
+- State that persists between steps
+- Failure handling and resume logic
+- Coordination of parallel workers
+
+You can describe a pipeline to Claude Code. It will execute it. Once.
+
+Next time? It's a fresh context. No memory of the previous run. No state file to resume from. No way to replay step 3 without re-running steps 1-2.
+
+**Clawdfile fills this gap:** conventions for turning ad-hoc agent execution into repeatable, resumable pipelines.
 
 ---
 
@@ -674,364 +690,48 @@ gate:
   condition: "quality.verdict in ['PASS', 'WARN']"
 ```
 
-#### Pattern 3: Quality Loop
-
-When: Need to achieve a certain quality level, possibly through multiple iterations.
-
-```
-┌─────────────────────────────────────────────────┐
-│                                                 │
-│    ┌──────────┐     ┌───────────┐     ┌─────┐  │
-└───▶│ Research │────▶│ Synthesis │────▶│ QG  │──┤
-     └──────────┘     └───────────┘     └─────┘  │
-                                           │      │
-                                    PASS   │      │ FAIL
-                                    ───────┘      │
-                                                  │
-                                    ┌─────────────┘
-                                    ▼
-                              Gap Analysis
-                              (what's missing?)
-                                    │
-                                    └──── back to Research
-                                          with specific gaps
-```
-
-**Logic in manager skill:**
-```markdown
-## Quality Gate Routing
-
-After quality-gate skill returns:
-
-| Verdict | Action |
-|---------|--------|
-| PASS | Continue to report generation |
-| WARN | Continue with caveats noted in report |
-| FAIL | Analyze gaps → Re-run research for specific gaps |
-
-On FAIL:
-1. Read quality.yaml for missing areas
-2. Generate targeted queries for gaps
-3. Spawn additional researchers for gap areas only
-4. Re-run synthesis with new data
-5. Re-check quality
-```
-
-#### Pattern 4: Fork-Join
-
-When: Multiple parallel branches that then merge.
-
-```
-              ┌──────────────┐
-              │   Planning   │
-              └──────┬───────┘
-                     │
-         ┌───────────┼───────────┐
-         ▼           ▼           ▼
-    ┌─────────┐ ┌─────────┐ ┌─────────┐
-    │ Branch  │ │ Branch  │ │ Branch  │
-    │   A     │ │   B     │ │   C     │
-    └────┬────┘ └────┬────┘ └────┬────┘
-         │           │           │
-         └───────────┼───────────┘
-                     ▼
-              ┌──────────────┐
-              │    Merge     │
-              │  (synthesis) │
-              └──────────────┘
-```
-
-**Code:**
-```markdown
-## Fork Phase
-Spawn in parallel:
-- Task(branch-a-worker, ...)
-- Task(branch-b-worker, ...)
-- Task(branch-c-worker, ...)
-
-Wait for all.
-
-## Join Phase
-Gate: All branch outputs exist
-Action: Synthesis skill merges results
-```
-
-#### Pattern 5: Conditional Routing
-
-When: Different paths depending on results.
-
-```
-              ┌──────────────┐
-              │   Analyze    │
-              └──────┬───────┘
-                     │
-              ┌──────┴──────┐
-              │  Condition  │
-              └──────┬──────┘
-                     │
-        ┌────────────┼────────────┐
-        ▼            ▼            ▼
-   ┌─────────┐  ┌─────────┐  ┌─────────┐
-   │ Path A  │  │ Path B  │  │ Path C  │
-   │(simple) │  │(medium) │  │(complex)│
-   └─────────┘  └─────────┘  └─────────┘
-```
-
-**Code:**
-```markdown
-## Routing Logic
-
-After analysis phase:
-- IF complexity_score < 30 → Path A (simple pipeline)
-- IF complexity_score < 70 → Path B (standard pipeline)
-- ELSE → Path C (full deep research)
-
-Each path has different:
-- Number of aspects
-- Source requirements
-- Quality thresholds
-```
-
 ### State Management
 
-Orchestration requires state for:
-- Resume after interrupt
-- Track progress
-- Debug failures
+State enables resume after interrupt. Structure:
 
-**State file structure:**
 ```yaml
 # artifacts/{session}/state.yaml
-
 session_id: "research_20260130_abc"
 workflow: "manager-research"
-started_at: "2026-01-30T10:00:00Z"
-last_updated: "2026-01-30T10:35:00Z"
-
 current_phase: "synthesis"
 
 phase_states:
   planning: completed
-  research: completed      # All workers done
-  synthesis: in_progress   # Currently running
+  research: completed
+  synthesis: in_progress
   quality_gate: pending
   report: pending
 
-# Optional: track individual workers
 workers:
   aspect_1: completed
   aspect_2: completed
-  aspect_3: failed        # This one failed
-  aspect_4: completed
-  aspect_5: completed
-
-error: null               # Or error message if failed
+  aspect_3: failed
 ```
 
-**State transitions:**
-```
-pending → in_progress → completed
-                     → failed
-                     → partial (some workers succeeded)
-```
+**Resume:** Read state.yaml → skip completed phases → re-run failed workers only.
 
-**Resume logic:**
-```markdown
-## On Resume
-
-1. Read state.yaml
-2. Find current_phase
-3. Check phase_states:
-   - If current_phase is "in_progress" → resume from there
-   - If current_phase is "failed" → offer retry options
-   - If current_phase is "completed" → move to next
-4. Skip all "completed" phases
-5. For "partial" phases → only re-run failed workers
-```
-
-### Error Handling
-
-#### Worker Failure
-
-```
-Worker fails
-    │
-    ├── Log error to state.yaml
-    │
-    ├── Continue with other workers
-    │
-    └── At phase end:
-        │
-        ├── If completed >= minimum → continue to next phase
-        │
-        └── If completed < minimum → phase fails
-```
-
-**Code:**
-```markdown
-## Error Handling: Research Phase
-
-On worker failure:
-1. Update state: workers.{aspect_id} = "failed"
-2. Log error: workers_errors.{aspect_id} = "{error}"
-3. Continue with remaining workers
-
-At phase end:
-- Count completed workers
-- IF completed >= plan.settings.min_aspects → Phase completed
-- ELSE → Phase failed, halt pipeline
-
-Recovery option:
-- User can run: `/research retry-failed {session}`
-- This re-runs only failed workers
-```
-
-#### Phase Failure
-
-```
-Phase fails
-    │
-    ├── Update state.yaml with error
-    │
-    ├── Halt pipeline
-    │
-    └── Report to user:
-        - What phase failed
-        - Why it failed
-        - What was completed
-        - Suggested actions
-```
-
-### Observability
-
-What to log for debugging:
-
-```yaml
-# Per worker
-worker_logs:
-  aspect_1:
-    started_at: timestamp
-    completed_at: timestamp
-    status: completed
-    output_file: "aspects/aspect_1.yaml"
-    metrics:
-      queries_run: 3
-      sources_found: 24
-      sources_used: 8
-
-# Per phase
-phase_logs:
-  research:
-    started_at: timestamp
-    completed_at: timestamp
-    workers_total: 5
-    workers_succeeded: 4
-    workers_failed: 1
-    duration_seconds: 180
-
-# Aggregate
-pipeline_metrics:
-  total_sources: 32
-  total_findings: 48
-  quality_score: 0.84
-  duration_seconds: 600
-```
-
-### Best Practices
-
-**1. Always use state.yaml**
-
-Even for simple pipelines. It's insurance against interrupts.
-
-**2. Set timeouts**
-
-Workers can hang. Set timeouts:
-```
-Task(..., timeout: 300000)  # 5 minutes
-```
-
-**3. Minimum thresholds, not exact counts**
-
-```yaml
-# Good: flexible
-min_aspects_for_synthesis: 3
-
-# Bad: rigid
-required_aspects: 5  # Fails if one worker fails
-```
-
-**4. Idempotent workers**
-
-A worker that restarts should produce the same result.
-Check if output exists → skip or overwrite.
-
-**5. Clear phase boundaries**
-
-Each phase should:
-- Read from specific files
-- Write to specific files
-- Have no side effects on other phases
-
----
-
-## Interface Schema (Autogen UI)
-
-Defines HOW to render data, not the data itself.
-
-```yaml
-sources:                              # Data binding
-  state: "artifacts/{session}/state.yaml"
-  synthesis: "artifacts/{session}/synthesis.yaml"
-
-pages:
-  - id: overview
-    sections:
-      - layout: grid                  # Layout type
-        fields:
-          - source: synthesis         # Which file
-            path: quality_metrics.saturation  # JSONPath
-            type: progress_bar        # Widget type
-            label: "Saturation"
-            threshold: 50
-```
-
-Render adapters transform to target:
-| Target | Output |
-|--------|--------|
-| CLI | ASCII tables, progress bars |
-| Chat | Markdown |
-| API | JSON |
-| Web | React components |
+**Error handling principles:**
+- Workers can fail independently — continue with others
+- Set minimum thresholds, not exact counts (`min_aspects: 3` not `required: 5`)
+- Phase fails only if completed < minimum
+- Always halt on phase failure, report what succeeded
 
 ---
 
 ## Project Structure
 
 ```
-clawdfile/
-├── README.md                         # This file
-├── LICENSE                           # MIT License
-├── QUICKSTART.md                     # Getting started guide
-├── CONTRIBUTING.md                   # Contribution guidelines
-├── schemas/                          # YAML conventions
-│   ├── agent.schema.yaml             # Agent definition
-│   ├── skill.schema.yaml             # Skill definition
-│   ├── workflow.schema.yaml          # Pipeline definition
-│   ├── interface.schema.yaml         # UI definition
-│   └── data-layers.schema.yaml       # L0-L3 conventions
-├── templates/                        # Starting points
-│   ├── agents/
-│   │   ├── worker.template.md
-│   │   ├── researcher.template.md
-│   │   └── generator.template.md
-│   └── skills/
-│       ├── atomic.template.md
-│       ├── composite.template.md
-│       ├── domain.template.md
-│       └── manager.template.md
-└── examples/
-    └── research-pipeline/            # Complete working example
+.claude/agents/    # Agent definitions (markdown)
+.claude/skills/    # Skill definitions (markdown)
+artifacts/         # Runtime outputs (gitignored)
 ```
+
+See `templates/` for starting points, `schemas/` for YAML conventions.
 
 ---
 
@@ -1061,21 +761,66 @@ cp framework/templates/skills/manager.template.md \
 # Describe phases, gates, orchestration
 ```
 
-### 4. Create an Interface
+---
 
-```yaml
-# .claude/interfaces/dashboard.yaml
-sources:
-  data: "artifacts/{session}/synthesis.yaml"
-pages:
-  - id: main
-    sections:
-      - layout: card
-        fields:
-          - source: data
-            path: key_metric
-            type: stat
+## Examples
+
+### Research Pipeline
+
+Multi-phase research with parallel workers and quality gates.
+
 ```
+┌─────────────┐     ┌─────────────────┐     ┌───────────┐
+│  Planning   │────▶│ Parallel Research│────▶│ Synthesis │
+│  (planner)  │     │ (N researchers)  │     │           │
+└─────────────┘     └─────────────────┘     └─────┬─────┘
+                                                  │
+                    ┌─────────────────┐     ┌─────▼─────┐
+                    │  Report Gen     │◀────│  Quality  │
+                    │  (generator)    │     │   Gate    │
+                    └─────────────────┘     └───────────┘
+```
+
+| Phase | Input | Output |
+|-------|-------|--------|
+| Planning | topic | plan.yaml |
+| Research ×N | plan.aspects | aspects/*.yaml |
+| Synthesis | aspects/*.yaml | synthesis.yaml |
+| Quality | synthesis.yaml | quality.yaml |
+| Report | synthesis.yaml | FINAL_REPORT.md |
+
+**Key concepts:** Manager skill orchestration, fan-out parallelism, sequential gates, file-based resume.
+
+→ See [examples/research-pipeline/](examples/research-pipeline/)
+
+### Batch Classifier
+
+Parallel batch processing for large datasets.
+
+```
+                        ┌─────────────────┐
+                        │    Manager      │
+                        └────────┬────────┘
+                                 │
+          ┌──────────────────────┼──────────────────────┐
+          ▼                      ▼                      ▼
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│  Batch Worker   │    │  Batch Worker   │    │  Batch Worker   │
+│   (batch 01)    │    │   (batch 02)    │    │   (batch N)     │
+└────────┬────────┘    └────────┬────────┘    └────────┬────────┘
+         ▼                      ▼                      ▼
+    50 items              50 items              remaining
+```
+
+| Phase | Input | Output |
+|-------|-------|--------|
+| Partition | data/*.yaml | manifest.yaml |
+| Classify ×N | manifest.batches | batches/{id}/*.yaml |
+| Aggregate | batches/*/*.yaml | taxonomy.yaml |
+
+**Key concepts:** Data partitioning, independent workers, schema validation, result aggregation.
+
+→ See [examples/batch-classifier/](examples/batch-classifier/)
 
 ---
 
