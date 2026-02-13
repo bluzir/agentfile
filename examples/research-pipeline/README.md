@@ -252,6 +252,20 @@ L3 (Artifacts):
 - **File-based state** for resume capability
 - **Git checkpointing** for time-travel debugging
 
+## OpenClaw Compatibility
+
+If you're running this pipeline on [OpenClaw](https://github.com/nicholasgriffintn/openclaw), Phase 2 (parallel research) needs adaptation — OpenClaw executes tool calls sequentially.
+
+| Phase | Parallel? | OpenClaw Change Needed? |
+|-------|-----------|------------------------|
+| 1. Planning | No | No |
+| 2. Research ×N | **Yes** | **Yes** — use `sessions_spawn` |
+| 3. Synthesis | No | No |
+| 4. Quality Gate | No | No |
+| 5. Report | No | No |
+
+See [OPENCLAW.md](../../OPENCLAW.md) for before/after code and the full adaptation guide.
+
 ## Customization
 
 To adapt this pipeline:

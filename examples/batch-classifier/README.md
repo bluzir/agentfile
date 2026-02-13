@@ -120,6 +120,19 @@ Each item is classified with:
 - **Aggregation pattern** combining distributed results
 - **State persistence** for resume capability
 
+## OpenClaw Compatibility
+
+If you're running this pipeline on [OpenClaw](https://github.com/nicholasgriffintn/openclaw), Phase 2 (parallel classification) needs adaptation — OpenClaw executes tool calls sequentially.
+
+| Phase | Parallel? | OpenClaw Change Needed? |
+|-------|-----------|------------------------|
+| 1. Partition | No | No |
+| 2. Classify ×N | **Yes** | **Yes** — use `sessions_spawn` |
+| 3. Aggregate | No | No |
+| 4. Export | No | No |
+
+See [OPENCLAW.md](../../OPENCLAW.md) for before/after code and the full adaptation guide.
+
 ## When to Use This Pattern
 
 **Good fit:**

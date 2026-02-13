@@ -1,5 +1,7 @@
 # claude-pipe
 
+[![OpenClaw Compatible](https://img.shields.io/badge/OpenClaw-compatible-blue)](OPENCLAW.md)
+
 **Operational pipelines for Claude Code**
 
 > Readable agents. Inspectable state. Predictable costs.
@@ -302,6 +304,10 @@ artifacts/
 | Session directories | Isolate runs, enable replay |
 
 ---
+
+## Compatibility
+
+Running pipelines on **OpenClaw** (or other alternative Claude frontends)? See [OPENCLAW.md](OPENCLAW.md) for the adaptation guide — only fan-out phases need changes.
 
 ## Contributing
 
