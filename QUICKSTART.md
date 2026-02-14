@@ -1,236 +1,269 @@
-# Quickstart Guide
+# Building Your Own Pipeline
 
-Get up and running with the Agent Orchestration Framework in 5 minutes.
+This guide walks you through designing and building a claude-pipe pipeline from scratch.
 
-## Prerequisites
+**If you're Claude Code**: Read [CLAUDE.md](CLAUDE.md) instead — it's written for you.
 
-- [Claude Code CLI](https://claude.ai/code) installed and authenticated
-- Basic familiarity with markdown and YAML
-- A project directory to work in
+---
 
-## Step 1: Set Up Project Structure
+## What Pipeline Do You Want?
 
-Create the standard directory structure for Claude Code:
+Before touching any files, answer these questions:
 
-```bash
-mkdir -p .claude/agents
-mkdir -p .claude/skills
-mkdir -p artifacts
+1. **What goes in?** (a topic, a dataset, a list of URLs, etc.)
+2. **What comes out?** (a report, a classified dataset, a summary, etc.)
+3. **What are the phases?** Name them. Draw the flow:
+   ```
+   Phase 1 → Phase 2 → Phase 3 → Output
+      │          │          │         │
+      ▼          ▼          ▼         ▼
+   file.yaml  files/*.yaml  agg.yaml  REPORT.md
+   ```
+4. **Which phases can run in parallel?** If a phase processes N independent items, it's a fan-out.
+
+---
+
+## Decision Tree: What Pattern?
+
+```
+Does your pipeline process N independent items in any phase?
+├── YES → Does each phase depend on the previous?
+│         ├── YES → HYBRID (sequential phases, fan-out within a phase)
+│         └── NO  → FAN-OUT (all items processed independently)
+└── NO  → PIPELINE (strictly sequential phases)
 ```
 
-Your project should look like:
+**Fan-out** (batch-classifier): partition 100 items → classify 2 batches in parallel → aggregate.
+**Pipeline** (sequential): plan → execute → review. Each step needs the previous output.
+**Hybrid** (research-pipeline): plan → research N aspects in parallel → synthesize → report.
+
+Most real pipelines are hybrid.
+
+---
+
+## Design Your Pipeline
+
+Map your phases to the file structure:
+
+| You Need | Create | Where |
+|----------|--------|-------|
+| Orchestration logic | Manager skill | `.claude/skills/manager-{name}.md` |
+| Worker that runs N times | Agent definition | `.claude/agents/{role}.md` |
+| Shared behavior for workers | Skills (atomic/domain) | `.claude/skills/{name}.md` |
+| Classification schema | Schema file | `.claude/schemas/{entity}.yaml` |
+| Runtime outputs | Session directory | `artifacts/{session}/` (gitignored) |
+
+---
+
+## Annotated Walkthrough: Batch Classifier
+
+Every file in `examples/batch-classifier/` tagged by what you'd reuse.
+
+### Directory Structure
+
 ```
-your-project/
+examples/batch-classifier/
 ├── .claude/
-│   ├── agents/         # Agent definitions
-│   └── skills/         # Skill definitions
-└── artifacts/          # Runtime outputs (gitignored)
+│   ├── agents/
+│   │   └── batch-worker.md          [DOMAIN-SPECIFIC] — your worker logic
+│   ├── schemas/
+│   │   └── classified-item.yaml     [DOMAIN-SPECIFIC] — your data schema
+│   └── skills/
+│       ├── manager-classify.md      [STRUCTURAL]      — adapt phases/gates for your pipeline
+│       ├── partition.md             [STRUCTURAL]       — reuse for any batch pipeline
+│       ├── taxonomy-builder.md      [DOMAIN-SPECIFIC]  — your aggregation logic
+│       └── io-yaml-safe.md          [REUSABLE]         — copy as-is
+├── data/sample/                     [DOMAIN-SPECIFIC]  — your input data
+└── artifacts/                       [STRUCTURAL]       — gitignored runtime outputs
 ```
 
-## Step 2: Copy Framework (Optional)
+### `[STRUCTURAL]` — Every pipeline needs this pattern
 
-You can either reference the framework documentation or copy it locally:
+**`manager-classify.md`** — The orchestration blueprint.
 
-```bash
-# Option A: Copy framework to your project
-cp -r path/to/framework ./framework
+Key structural patterns to copy:
+- Phase definitions with gates between them
+- `state.yaml` initialization with all phases as `pending`
+- Fan-out: spawn ALL workers in a single message with `run_in_background: true`
+- Wait: `TaskOutput(block: true)` for each spawned task
+- State updates: mark phases `in_progress` → `completed`
+- Recovery: retry failed workers, resume from state
 
-# Option B: Just reference README.md when prompting Claude
-# "Use conventions from framework/README.md"
-```
+**`partition.md`** — Data partitioning for batch processing.
 
-## Step 3: Create Your First Agent
+Reuse when: you have N items to process in parallel batches.
+Replace when: your parallelism is semantic (research aspects), not data-based.
 
-Copy the researcher template:
+### `[REUSABLE]` — Copy as-is to any pipeline
 
-```bash
-cp framework/templates/agents/researcher.template.md \
-   .claude/agents/my-researcher.md
-```
+**`io-yaml-safe.md`** — Safe YAML writing with validation and auto-repair.
 
-Edit `.claude/agents/my-researcher.md`:
+Every worker that writes YAML should list this in its skills. Handles:
+- Structure validation before write
+- Atomic writes (temp file → validate → move)
+- Auto-repair loop (up to 2 attempts via yaml-repair skill)
+
+Also available in research-pipeline: `silence-protocol.md` (workers write files only, no chat output).
+
+### `[DOMAIN-SPECIFIC]` — Unique to your task
+
+**`batch-worker.md`** — Classification logic per item.
+
+This is where YOUR domain knowledge lives. The batch-classifier version classifies by category/sentiment/tags. You'd replace this entirely with your worker's logic, keeping the structure:
+- Frontmatter with name, type, model, skills, output format
+- Input section (what the worker receives)
+- Procedure section (step-by-step)
+- Output format (exact YAML schema)
+- Error handling table
+
+**`taxonomy-builder.md`** — Aggregation of classified outputs.
+
+Your aggregation will be different. The pattern to keep:
+- Collect all output files from workers
+- Build summary statistics
+- Write single aggregated output file
+
+---
+
+## Minimal Viable Pipeline
+
+A complete 2-phase pipeline: **plan** then **execute**.
+
+### File: `.claude/skills/manager-example.md`
 
 ```markdown
 ---
-name: my-researcher
-type: researcher
-model: sonnet
-tools: [Read, Write, Grep, WebFetch, WebSearch]
+name: manager-example
+type: manager
+version: v1.0
+description: "Minimal 2-phase pipeline"
 ---
 
-# My Researcher
+# Example Pipeline
 
-You are a research agent focused on [YOUR DOMAIN].
+## Session Setup
+- Generate session ID: `example-{YYYYMMDD}-{HHMMSS}`
+- Create: `artifacts/{session}/`
+- Initialize state.yaml:
+  ```yaml
+  session_id: "{session}"
+  current_phase: planning
+  phase_states:
+    planning: in_progress
+    execution: pending
+  ```
+
+## Phase 1: Planning
+1. Read user input
+2. Break task into 3-5 work items
+3. Write plan:
+   ```yaml
+   # artifacts/{session}/plan.yaml
+   topic: "{user_input}"
+   items:
+     - id: item_01
+       description: "..."
+     - id: item_02
+       description: "..."
+   ```
+4. Update state: planning = completed
+
+## Gate: Planning → Execution
+- Condition: `plan.yaml` exists with >= 1 item
+- On fail: Ask user to clarify input
+
+## Phase 2: Execution (parallel)
+For each item in plan.items:
+  Task(
+    subagent_type: "general-purpose",
+    prompt: |
+      Load agent from .claude/agents/worker.md
+      Process item: {item.description}
+      Write output to: artifacts/{session}/results/{item.id}.yaml
+    description: "Process {item.id}",
+    run_in_background: true
+  )
+
+Wait for all tasks with TaskOutput(block: true).
+Update state: execution = completed
+
+## Completion
+Read all results from artifacts/{session}/results/*.yaml.
+Write summary to artifacts/{session}/SUMMARY.md.
+```
+
+### File: `.claude/agents/worker.md`
+
+```markdown
+---
+name: worker
+type: worker
+model: sonnet
+tools: [Read, Write]
+skills:
+  required: [silence-protocol, io-yaml-safe]
+output:
+  format: yaml
+  path: artifacts/{session}/results/{item_id}.yaml
+---
+
+# Worker
 
 ## Input
-- `query`: Topic to research
-- `output_path`: Where to write results
+- `item_id`: Which item to process
+- `description`: What to do
+- Output path provided in prompt
 
 ## Procedure
-1. Search for relevant sources
-2. Evaluate source quality
-3. Extract key findings
-4. Write structured output
+1. Read the item description
+2. Do the work (your domain logic here)
+3. Write structured output to the given path
 
 ## Output Format
-Write YAML to `{output_path}`:
 ```yaml
-query: "{query}"
-sources:
-  - url: "..."
-    title: "..."
-    tier: A|B|C
-findings:
-  - claim: "..."
-    source: "..."
-    confidence: high|medium|low
+item_id: "{item_id}"
+result: "..."
+status: completed
 ```
 ```
 
-## Step 4: Create Your First Skill
+### File: `.claude/skills/silence-protocol.md`
 
-Create an atomic skill for a common operation:
+Copy from: `examples/research-pipeline/.claude/skills/silence-protocol.md`
 
-```bash
-cp framework/templates/skills/atomic.template.md \
-   .claude/skills/source-check.md
-```
+### File: `.claude/skills/io-yaml-safe.md`
 
-Edit `.claude/skills/source-check.md`:
+Copy from: `examples/research-pipeline/.claude/skills/io-yaml-safe.md`
 
-```markdown
----
-name: source-check
-type: atomic
-scope: "Evaluate source credibility"
----
-
-# Source Check
-
-## Input
-- URL to evaluate
-
-## Procedure
-1. Check domain reputation
-2. Look for author credentials
-3. Check publication date
-4. Identify potential bias
-
-## Output
-Return:
-- `tier`: S|A|B|C|D|X
-- `reason`: Brief explanation
-```
-
-## Step 5: Run Your Agent
-
-In Claude Code, invoke your agent:
+### Run it
 
 ```
-/my-researcher
-
-Research the topic "sustainable agriculture practices"
-and write output to artifacts/research-001.yaml
+/manager-example "Analyze the top 5 risks of our deployment strategy"
 ```
-
-Claude will load your agent definition and execute the research task.
-
-## Step 6: Create a Simple Pipeline
-
-For multi-step workflows, create a manager skill:
-
-```bash
-cp framework/templates/skills/manager.template.md \
-   .claude/skills/manager-basic-research.md
-```
-
-Edit `.claude/skills/manager-basic-research.md`:
-
-```markdown
----
-name: manager-basic-research
-type: manager
-scope: "Coordinate basic research pipeline"
----
-
-# Basic Research Pipeline
-
-## Phases
-
-### Phase 1: Planning
-1. Read user query
-2. Generate 3-5 research aspects
-3. Write plan to `artifacts/{session}/plan.yaml`
-
-### Phase 2: Research
-For each aspect in plan:
-1. Spawn `my-researcher` agent with aspect
-2. Write to `artifacts/{session}/aspects/{aspect_id}.yaml`
-
-**Orchestration:** Run all researchers in parallel.
-
-### Phase 3: Synthesis
-1. Read all aspect files
-2. Combine findings
-3. Write `artifacts/{session}/synthesis.yaml`
-
-### Phase 4: Output
-1. Generate final report
-2. Write `artifacts/{session}/REPORT.md`
-```
-
-## Step 7: Run the Pipeline
-
-```
-/manager-basic-research
-
-Research topic: "Impact of remote work on productivity"
-Session: research-001
-```
-
-## What's Next?
-
-### Learn More
-- Read the full [README.md](README.md) for detailed concepts
-- Explore [examples/research-pipeline](examples/research-pipeline/) for a complete implementation
-
-### Customize
-- Add domain-specific skills for your use case
-- Create agents for different functional roles
-- Build quality gates for your pipelines
-
-### Adopt Gradually
-1. **Level 1**: Use conventions (file structure, naming)
-2. **Level 2**: Use templates (schemas, validation)
-3. **Level 3**: Full pipelines (managers, state, quality gates)
-
-## Troubleshooting
-
-### Agent not found
-- Ensure file is in `.claude/agents/`
-- Check filename matches agent name in frontmatter
-- Verify markdown frontmatter is valid YAML
-
-### Output not written
-- Check `artifacts/` directory exists
-- Verify agent has Write tool in frontmatter
-- Look for error messages in Claude Code output
-
-### Pipeline stuck
-- Check `artifacts/{session}/state.yaml` for phase status
-- Look for failed workers
-- Verify gate conditions are met
-
-## Quick Reference
-
-| Task | Command |
-|------|---------|
-| Create agent | `cp templates/agents/*.template.md .claude/agents/` |
-| Create skill | `cp templates/skills/*.template.md .claude/skills/` |
-| Run agent | `/agent-name <args>` |
-| Run pipeline | `/manager-name <args>` |
-| Check state | Read `artifacts/{session}/state.yaml` |
 
 ---
 
-Ready to dive deeper? Check out the [full documentation](README.md).
+## What to Reuse vs. Create
+
+| File | Reuse or Create? | Notes |
+|------|-------------------|-------|
+| Manager skill | **Create** (adapt from example) | Your phases, gates, and data flow |
+| Worker agents | **Create** | Your domain logic |
+| `silence-protocol.md` | **Reuse** (copy as-is) | Keeps workers quiet |
+| `io-yaml-safe.md` | **Reuse** (copy as-is) | Safe YAML output |
+| `grounding-protocol.md` | **Reuse** if research | No-hallucination rules |
+| `search-safeguard.md` | **Reuse** if web search | Exa API retry/jitter |
+| `quality-gate.md` | **Adapt** | Change thresholds for your domain |
+| `anti-cringe.md` | **Reuse** if generating text | Suppress AI-typical phrasing |
+| Domain skills | **Create** | Your taxonomy, rules, knowledge |
+| Schemas | **Create** | Your data shapes |
+| `state.yaml` pattern | **Adapt** | Change phase names, keep the structure |
+
+---
+
+## Next Steps
+
+- Read [CLAUDE.md](CLAUDE.md) for the full convention reference
+- Read [README.md](README.md) for the conceptual overview
+- Browse `examples/research-pipeline/` for a complex hybrid pipeline
+- Browse `examples/batch-classifier/` for a data-parallel pipeline

@@ -51,7 +51,7 @@ git clone https://github.com/bluzir/claude-pipe.git
 cd claude-pipe
 
 # Explore the structure
-ls -la framework/
+ls -la
 ```
 
 ### Testing Changes

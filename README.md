@@ -5,6 +5,8 @@
 **Operational pipelines for Claude Code**
 
 > Readable agents. Inspectable state. Predictable costs.
+>
+> **Building a pipeline with Claude Code?** Start with [CLAUDE.md](CLAUDE.md).
 
 Claude Code is great for tasks. But when you need multi-step pipelines — research → analyze → generate, batch processing overnight, workflows that run unattended — you hit gaps:
 
@@ -242,21 +244,15 @@ artifacts/
 
 ## Getting Started
 
-1. **Copy a template**
-   ```bash
-   cp examples/research-pipeline/.claude/skills/manager-research.md \
-      .claude/skills/manager-mypipeline.md
-   ```
+**For Claude Code**: Read [CLAUDE.md](CLAUDE.md) — it has the step-by-step recipe for building a pipeline.
 
-2. **Edit for your task**
-   - Define phases
-   - Specify gates
-   - List workers
+**For humans**: Read the [Quickstart Guide](QUICKSTART.md) — annotated walkthrough with decision trees and a minimal example.
 
-3. **Run**
-   ```
-   /manager-mypipeline "your topic"
-   ```
+**To run an example**:
+```
+cd examples/research-pipeline
+/manager-research "your topic"
+```
 
 ---
 
